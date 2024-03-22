@@ -574,6 +574,8 @@ pub(super) fn strptime(
         },
         #[cfg(feature = "dtype-time")]
         DataType::Time => to_time(&s[0], options),
+        #[cfg(feature = "dtype-duration")]
+        DataType::Duration(TimeUnit::Nanoseconds) => to_duration(&s[0], options),
         dt => polars_bail!(ComputeError: "not implemented for dtype {}", dt),
     }
 }
@@ -690,6 +692,23 @@ fn to_time(s: &Series, options: &StrptimeOptions) -> PolarsResult<Series> {
     let ca = s.str()?;
     let out = ca
         .as_time(options.format.as_deref(), options.cache)?
+        .into_series();
+
+    if options.strict && ca.null_count() != out.null_count() {
+        handle_casting_failures(s, &out)?;
+    }
+    Ok(out.into_series())
+}
+
+#[cfg(feature = "dtype-duration")]
+fn to_duration(s: &Series, options: &StrptimeOptions) -> PolarsResult<Series> {
+    polars_ensure!(
+        options.exact, ComputeError: "non-exact not implemented for Duration data type"
+    );
+
+    let ca = s.str()?;
+    let out = ca
+        .as_duration(options.format.as_deref(), options.cache)?
         .into_series();
 
     if options.strict && ca.null_count() != out.null_count() {

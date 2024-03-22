@@ -117,6 +117,111 @@ pub trait StringMethods: AsString {
         let ca = string_ca.apply_generic(|opt_s| convert.eval(opt_s?, use_cache));
         Ok(ca.with_name(string_ca.name()).into())
     }
+    
+    #[cfg(feature = "dtype-duration")]
+    /// Parsing string values and return a ['DurationChunked']
+    fn as_duration(&self, fmt: Option<&str>, use_cache: bool) -> PolarsResult<DurationChunked> {
+        use std::borrow::Borrow;
+
+        use chrono::format::StrftimeItems;
+
+        let string_ca = self.as_string();
+        let fmt = match fmt {
+            Some(fmt) => fmt,
+            None => sniff_fmt_time(string_ca)?,
+        };
+        let use_cache = use_cache && string_ca.len() > 50;
+
+        let mut convert = CachedFunc::new(|mut s: &str| {
+            let items = StrftimeItems::new(fmt);
+            let mut duration_ns = 0i64;
+            for item in items {
+                match *item.borrow() {
+                    chrono::format::Item::Literal(lit_str) => {
+                        if s.len() < lit_str.len() {
+                            return None;
+                        }
+                        if !s.starts_with(lit_str) {
+                            return None;
+                        }
+                        s = &s[lit_str.len()..];
+                    },
+                    chrono::format::Item::OwnedLiteral(ref lit_str) => {
+                        if s.len() < lit_str.len() {
+                            return None;
+                        }
+                        if !s.starts_with(&lit_str[..]) {
+                            return None;
+                        }
+                        s = &s[lit_str.len()..];
+                    },
+                    chrono::format::Item::Space(_) => {
+                        s = s.trim_start();
+                    }
+                    chrono::format::Item::OwnedSpace(_) => {
+                        s = s.trim_start();
+                    }
+                    chrono::format::Item::Numeric(ref spec, ref _pad) => {
+                        let multiplier;
+                        let max_digits;
+                        match *spec {
+                            chrono::format::Numeric::Hour => {
+                                multiplier = 3600 * 1_000_000_000;
+                                max_digits = 3;
+                            },
+                            chrono::format::Numeric::Minute => {
+                                multiplier = 60 * 1_000_000_000;
+                                max_digits = 3;
+                            },
+                            chrono::format::Numeric::Second => {
+                                multiplier = 1_000_000_000;
+                                max_digits = 3;
+                            },
+                            chrono::format::Numeric::Nanosecond => {
+                                multiplier = 1;
+                                max_digits = 9;
+                            },
+                            _ => {
+                                return None;
+                            }
+                        }
+
+                        let bytes = s.as_bytes();
+
+                        let mut n = 0i64;
+                        let mut consumed = 0usize;
+                        for (i, c) in bytes.iter().take(max_digits).cloned().enumerate() {
+                            if !c.is_ascii_digit() {
+                                if i < 1 {
+                                    return None;
+                                } else {
+                                    consumed = i;
+                                    break;
+                                }
+                            }
+
+                            n = match n.checked_mul(10).and_then(|n| n.checked_add((c - b'0') as i64)) {
+                                Some(n) => n,
+                                None => return None,
+                            };
+                        }
+                        consumed = match consumed { 0 => core::cmp::min(max_digits, bytes.len()), _ => consumed };
+                        s = &s[consumed..];
+                        duration_ns = duration_ns.checked_add(n.checked_mul(multiplier).expect("Out of range")).expect("Out of range");
+                    },
+                    chrono::format::Item::Fixed(_) => {
+                        return None;
+                    },
+                    chrono::format::Item::Error => {
+                        return None;
+                    },
+                }
+            }
+            Some(duration_ns)
+       });
+       let ca = string_ca.apply_generic(|opt_s| convert.eval(opt_s?, use_cache));
+       Ok(ca.with_name(string_ca.name()).into())
+    }
 
     #[cfg(feature = "dtype-date")]
     /// Parsing string values and return a [`DateChunked`]

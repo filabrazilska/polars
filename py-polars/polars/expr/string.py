@@ -14,7 +14,7 @@ from polars._utils.deprecation import (
 from polars._utils.parse_expr_input import parse_as_expression
 from polars._utils.various import find_stacklevel
 from polars._utils.wrap import wrap_expr
-from polars.datatypes import Date, Datetime, Int32, Time, py_type_to_dtype
+from polars.datatypes import Date, Datetime, Duration, Int32, Time, py_type_to_dtype
 from polars.datatypes.constants import N_INFER_DEFAULT
 from polars.exceptions import ChronoFormatWarning
 
@@ -205,6 +205,46 @@ class ExprStringNameSpace:
         _validate_format_argument(format)
         return wrap_expr(self._pyexpr.str_to_time(format, strict, cache))
 
+    def to_duration(
+        self,
+        format: str | None = None,
+        *,
+        strict: bool = True,
+        cache: bool = True,
+    ) -> Expr:
+        """
+        Convert a String column into a Duration column.
+
+        Parameters
+        ----------
+        format
+            Format to use for conversion. Refer to the `chrono crate documentation
+            <https://docs.rs/chrono/latest/chrono/format/strftime/index.html>`_
+            for the full specification. Example: `"%H:%M:%S"`.
+            If set to None (default), the format is inferred from the data.
+        strict
+            Raise an error if any conversion fails.
+        cache
+            Use a cache of unique, converted times to apply the conversion.
+
+        Examples
+        --------
+        >>> df = pl.DataFrame({'Duration':["01:00", "80:10", "112:00", ]})
+        >>> df.with_columns(pl.col('Duration').str.to_duration("%H:%M"))
+        shape: (3, 1)
+        ┌──────────────┐
+        │ Duration     │
+        │ ---          │
+        │ duration[ns] │
+        ╞══════════════╡
+        │ 1h           │
+        │ 3d 8h 10m    │
+        │ 4d 16h       │
+        └──────────────┘
+        """
+        _validate_format_argument(format)
+        return wrap_expr(self._pyexpr.str_to_duration(format, strict, cache))
+
     def strptime(
         self,
         dtype: PolarsTemporalType,
@@ -320,6 +360,8 @@ class ExprStringNameSpace:
             )
         elif dtype == Time:
             return self.to_time(format, strict=strict, cache=cache)
+        elif dtype == Duration:
+            return self.to_duration(format, strict=strict, cache=cache)
         else:
             msg = "`dtype` must be of type {Date, Datetime, Time}"
             raise ValueError(msg)

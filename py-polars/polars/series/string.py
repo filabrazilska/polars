@@ -189,6 +189,41 @@ class StringNameSpace:
         ]
         """
 
+    def to_duration(
+        self,
+        format: str | None = None,
+        *,
+        strict: bool = True,
+        cache: bool = True,
+    ) -> Series:
+        """
+        Convert a String column into a Duration column.
+
+        Parameters
+        ----------
+        format
+            Format to use for conversion. Refer to the `chrono crate documentation
+            <https://docs.rs/chrono/latest/chrono/format/strftime/index.html>`_
+            for the full specification. Example: `"%H:%M:%S"`.
+            If set to None (default), the format is inferred from the data.
+        strict
+            Raise an error if any conversion fails.
+        cache
+            Use a cache of unique, converted times to apply the conversion.
+
+        Examples
+        --------
+        >>> s = pl.Series(["01:00", "80:10", "112:00"])
+        >>> s.str.to_duration("%H:%M")
+        shape: (3,)
+        Series: '' [duration[ns]]
+        [
+                1h
+                3d 8h 10m
+                4d 16h
+        ]
+        """
+
     def strptime(
         self,
         dtype: PolarsTemporalType,

@@ -293,6 +293,12 @@ impl StringNameSpace {
         self.strptime(DataType::Time, options, lit("raise"))
     }
 
+    /// Convert a String column into a Duration column.
+    #[cfg(feature = "dtype-duration")]
+    pub fn to_duration(self, options: StrptimeOptions) -> Expr {
+        self.strptime(DataType::Duration(TimeUnit::Nanoseconds), options, lit("raise"))
+    }
+
     /// Convert a String column into a Decimal column.
     #[cfg(feature = "dtype-decimal")]
     pub fn to_decimal(self, infer_length: usize) -> Expr {

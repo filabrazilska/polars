@@ -3,6 +3,12 @@ use crate::prelude::*;
 
 pub type DurationChunked = Logical<DurationType, Int64Type>;
 
+impl From<Int64Chunked> for DurationChunked {
+    fn from(ca: Int64Chunked) -> Self {
+        ca.into_duration(TimeUnit::Nanoseconds)
+    }
+}
+
 impl Int64Chunked {
     pub fn into_duration(self, timeunit: TimeUnit) -> DurationChunked {
         let mut dt = DurationChunked::new_logical(self);
